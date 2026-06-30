@@ -100,7 +100,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             val name = getFileName(cr, uri) ?: "file"
             // 先复制到缓存目录再发送
             val tmp  = File(getApplication<Application>().cacheDir, name)
-            cr.openInputStream(uri)!!.use { it.copyTo(tmp.outputStream()) }
+            cr.openInputStream(uri)!!.use { input ->
+                tmp.outputStream().use { output -> input.copyTo(output) }
+            }
 
             val cm = ChatMsg(fromId = net.localId, fromName = net.localName,
                              direction = MsgDirection.Sent, type = MsgType.FileSent,

@@ -6,7 +6,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.material3.MaterialTheme
 import com.lanchatkotlin.ui.screens.MainScreen
 import com.lanchatkotlin.ui.theme.LanChatTheme
 import com.lanchatkotlin.viewmodel.ChatViewModel

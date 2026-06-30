@@ -93,7 +93,7 @@ class NetworkService(
 
     private suspend fun broadcastLoop() {
         val sender = DatagramSocket().apply { broadcast = true }
-        while (isActive) {
+        while (currentCoroutineContext().isActive) {
             sendBroadcast(sender, Protocol.MSG_HEARTBEAT)
             delay(5_000)
         }

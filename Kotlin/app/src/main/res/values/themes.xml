@@ -1,0 +1,7 @@
+<resources>
+    <!-- Compose 应用的启动主题：纯色背景 + 无 ActionBar，不依赖 AppCompat -->
+    <style name="Theme.LanChat" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#3F51B5</item>
+        <item name="android:windowBackground">#F0F2F5</item>
+    </style>
+</resources>
