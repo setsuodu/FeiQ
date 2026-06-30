@@ -193,6 +193,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (msg?.Content == null) return;
         if (File.Exists(msg.Content))
             System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{msg.Content}\"");
+        else
+            StatusText = $"文件不存在: {msg.Content}";
     }
 
     private void AddToHistory(string peerId, ChatMessage cm)

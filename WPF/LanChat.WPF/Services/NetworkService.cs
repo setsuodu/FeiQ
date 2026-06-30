@@ -26,6 +26,7 @@ public class NetworkService : IDisposable
 
     // 子网广播地址，从本机 IP 推算（例：192.168.1.85 → 192.168.1.255）
     private readonly IPAddress _broadcastIP;
+    private readonly string _logPath;
 
     public NetworkService(string name)
     {
@@ -33,6 +34,20 @@ public class NetworkService : IDisposable
         LocalName    = name;
         LocalIP      = GetLocalIP();
         _broadcastIP = GetBroadcastAddress(LocalIP);
+
+        var logDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "Downloads", "LanChat");
+        Directory.CreateDirectory(logDir);
+        _logPath = Path.Combine(logDir, "lanchat.log");
+        Log($"=== 启动 LocalId={LocalId} LocalIP={LocalIP} Broadcast={_broadcastIP} ===");
+    }
+
+    private void Log(string msg)
+    {
+        var line = $"[{DateTime.Now:HH:mm:ss.fff}] {msg}";
+        Console.WriteLine(line);
+        try { File.AppendAllText(_logPath, line + Environment.NewLine); } catch { }
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -135,45 +150,76 @@ public class NetworkService : IDisposable
 
     private async Task TcpAcceptLoopAsync()
     {
+        Log("TCP 监听已启动，端口 " + Protocol.TCP_PORT);
         while (!_cts.Token.IsCancellationRequested)
         {
             try
             {
                 var client = await _tcpListener!.AcceptTcpClientAsync(_cts.Token);
+                Log($"TCP 收到连接：{client.Client.RemoteEndPoint}");
                 _ = HandleTcpClientAsync(client);
             }
             catch (OperationCanceledException) { break; }
-            catch { }
+            catch (Exception ex) { Log($"[TCP Accept 异常] {ex}"); }
         }
     }
 
     private async Task HandleTcpClientAsync(TcpClient client)
     {
-        using (client)
-        using (var stream = client.GetStream())
+        try
         {
-            var header = new byte[4];
-            await ReadExactAsync(stream, header, 4);
-            var msgLen = BitConverter.ToInt32(header, 0);
-
-            var msgBuf = new byte[msgLen];
-            await ReadExactAsync(stream, msgBuf, msgLen);
-            var msg = TcpMessage.Deserialize(Encoding.UTF8.GetString(msgBuf));
-            if (msg == null) return;
-
-            if (msg.Type == Protocol.MSG_FILE_REQ && msg.FileSize > 0)
+            using (client)
+            using (var stream = client.GetStream())
             {
-                var savePath = GetSavePath(msg.FileName ?? "file");
-                await ReceiveFileAsync(stream, savePath, msg.FileSize, msg.MsgId);
-                msg.Content = savePath;
-            }
+                var header = new byte[4];
+                await ReadExactAsync(stream, header, 4);
+                var msgLen = BitConverter.ToInt32(header, 0);
+                Log($"收到帧头，JSON 长度={msgLen}");
 
-            MessageReceived?.Invoke(msg);
+                var msgBuf = new byte[msgLen];
+                await ReadExactAsync(stream, msgBuf, msgLen);
+                var msg = TcpMessage.Deserialize(Encoding.UTF8.GetString(msgBuf));
+                if (msg == null) { Log("[警告] JSON 反序列化失败，丢弃此消息"); return; }
+                Log($"消息类型={msg.Type} from={msg.FromName} fileName={msg.FileName} fileSize={msg.FileSize}");
+
+                if (msg.Type == Protocol.MSG_FILE_REQ && msg.FileSize > 0)
+                {
+                    var savePath = GetSavePath(msg.FileName ?? "file");
+                    Log($"开始接收文件 → {savePath}");
+                    await ReceiveFileAsync(stream, savePath, msg.FileSize, msg.MsgId);
+                    msg.Content = savePath;
+                    Log($"文件接收完成 → {savePath}");
+                }
+                else if (msg.Type == Protocol.MSG_IMAGE)
+                {
+                    // 图片同样落盘，方便用户右键查看
+                    var savePath = GetSavePath(msg.FileName ?? $"image_{msg.MsgId}.png");
+                    try
+                    {
+                        var bytes = Convert.FromBase64String(msg.Content);
+                        await File.WriteAllBytesAsync(savePath, bytes);
+                        msg.Content = savePath;   // UI 直接从本地文件加载，同时支持"打开文件位置"
+                        Log($"图片已保存 → {savePath}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"[警告] 图片保存失败，回退为内存显示: {ex.Message}");
+                    }
+                }
+
+                MessageReceived?.Invoke(msg);
+                Log("已触发 MessageReceived 事件");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"[TCP Handle 异常] {ex}");
         }
     }
 
     private async Task ReceiveFileAsync(NetworkStream stream, string path, long size, string msgId)
     {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         using var fs = File.Create(path);
         var buf = new byte[65536];
         long received = 0;
@@ -181,7 +227,11 @@ public class NetworkService : IDisposable
         {
             int toRead = (int)Math.Min(buf.Length, size - received);
             int n      = await stream.ReadAsync(buf.AsMemory(0, toRead));
-            if (n == 0) break;
+            if (n == 0)
+            {
+                Log($"[警告] 连接提前关闭，已收 {received}/{size} 字节");
+                break;
+            }
             await fs.WriteAsync(buf.AsMemory(0, n));
             received += n;
             TransferProgress?.Invoke(msgId, received, size);
@@ -193,6 +243,7 @@ public class NetworkService : IDisposable
     // ────────────────────────────────────────────────────────────────
     public async Task SendTextAsync(string peerIp, string toId, string toName, string text)
     {
+        Log($"发送文字 → {peerIp}");
         var msg = new TcpMessage
         {
             Type = Protocol.MSG_TEXT, FromId = LocalId, FromName = LocalName,
@@ -203,6 +254,7 @@ public class NetworkService : IDisposable
 
     public async Task SendImageAsync(string peerIp, string toId, string imagePath)
     {
+        Log($"发送图片 → {peerIp}: {imagePath}");
         var base64 = Convert.ToBase64String(await File.ReadAllBytesAsync(imagePath));
         var msg = new TcpMessage
         {
@@ -210,12 +262,14 @@ public class NetworkService : IDisposable
             ToId = toId, Content = base64, FileName = Path.GetFileName(imagePath)
         };
         await SendFrameAsync(peerIp, msg);
+        Log("图片发送完成");
     }
 
     public async Task SendFileAsync(string peerIp, string toId, string filePath,
                                     IProgress<(long sent, long total)>? progress = null)
     {
         var info = new FileInfo(filePath);
+        Log($"发送文件 → {peerIp}: {filePath} ({info.Length} 字节)");
         var msg  = new TcpMessage
         {
             Type = Protocol.MSG_FILE_REQ, FromId = LocalId, FromName = LocalName,
@@ -239,6 +293,7 @@ public class NetworkService : IDisposable
             sent += n;
             progress?.Report((sent, info.Length));
         }
+        Log($"文件发送完成，共 {sent} 字节");
     }
 
     private async Task SendFrameAsync(string peerIp, TcpMessage msg)

@@ -77,6 +77,14 @@
                     <Border Background="{Binding Direction, Converter={StaticResource BubbleConv}}"
                             CornerRadius="12" Padding="4"
                             Visibility="{Binding Type, Converter={StaticResource TypeVis}, ConverterParameter=Image}">
+                        <Border.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="打开文件所在位置"
+                                          Command="{Binding DataContext.OpenFileCommand,
+                                                    RelativeSource={RelativeSource AncestorType=Window}}"
+                                          CommandParameter="{Binding}"/>
+                            </ContextMenu>
+                        </Border.ContextMenu>
                         <StackPanel>
                             <Image Source="{Binding Content, Converter={StaticResource ImgConv}}"
                                    MaxWidth="320" MaxHeight="240" Stretch="Uniform"
@@ -86,7 +94,7 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- 文件气泡 -->
+                    <!-- 文件气泡（接收） -->
                     <Border Background="{Binding Direction, Converter={StaticResource BubbleConv}}"
                             CornerRadius="12" Padding="12,10" Cursor="Hand"
                             Visibility="{Binding Type, Converter={StaticResource TypeVis}, ConverterParameter=FileReceived}">
@@ -96,6 +104,14 @@
                                                     RelativeSource={RelativeSource AncestorType=Window}}"
                                           CommandParameter="{Binding}"/>
                         </Border.InputBindings>
+                        <Border.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="打开文件所在位置"
+                                          Command="{Binding DataContext.OpenFileCommand,
+                                                    RelativeSource={RelativeSource AncestorType=Window}}"
+                                          CommandParameter="{Binding}"/>
+                            </ContextMenu>
+                        </Border.ContextMenu>
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="📄" FontSize="28" Margin="0,0,8,0" VerticalAlignment="Center"/>
                             <StackPanel VerticalAlignment="Center">
@@ -109,8 +125,22 @@
 
                     <!-- 已发送文件气泡 -->
                     <Border Background="{Binding Direction, Converter={StaticResource BubbleConv}}"
-                            CornerRadius="12" Padding="12,10"
+                            CornerRadius="12" Padding="12,10" Cursor="Hand"
                             Visibility="{Binding Type, Converter={StaticResource TypeVis}, ConverterParameter=FileRequest}">
+                        <Border.InputBindings>
+                            <MouseBinding MouseAction="LeftClick"
+                                          Command="{Binding DataContext.OpenFileCommand,
+                                                    RelativeSource={RelativeSource AncestorType=Window}}"
+                                          CommandParameter="{Binding}"/>
+                        </Border.InputBindings>
+                        <Border.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="打开文件所在位置"
+                                          Command="{Binding DataContext.OpenFileCommand,
+                                                    RelativeSource={RelativeSource AncestorType=Window}}"
+                                          CommandParameter="{Binding}"/>
+                            </ContextMenu>
+                        </Border.ContextMenu>
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="📤" FontSize="28" Margin="0,0,8,0" VerticalAlignment="Center"/>
                             <StackPanel VerticalAlignment="Center">
